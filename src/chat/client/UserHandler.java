@@ -166,10 +166,7 @@ class UserHandler implements Runnable
 				 * l'utilisateur on quitte la boucle
 				 */
 				if (userInput.equals(Vocabulary.byeCmd))
-				{
-					commonRun = false;
 					break;
-				}
 			}
 			else
 			{
