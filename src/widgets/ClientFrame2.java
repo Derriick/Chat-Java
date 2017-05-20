@@ -59,11 +59,6 @@ public class ClientFrame2 extends AbstractClientFrame
 	protected final JTextField sendTextField;
 
 	/**
-	 * Actions à réaliser lorsque l'on veut effacer le contenu du document
-	 */
-	private final ClearAction clearAction;
-
-	/**
 	 * Actions à réaliser lorsque l'on veut envoyer un message au serveur
 	 */
 	private final SendAction sendAction;
@@ -72,6 +67,12 @@ public class ClientFrame2 extends AbstractClientFrame
 	 * Actions à réaliser lorsque l'on veut envoyer un message au serveur
 	 */
 	protected final QuitAction quitAction;
+
+	protected final ClearMessagesAction clearMessagesAction;
+	protected final FilterMessagesAction filterMessagesAction;
+	protected final SortAction sortAction;
+	protected final ClearSelectedAction clearSelectedAction;
+	protected final KickSelectedUsersAction kickSelectedUsersAction;
 
 	/**
 	 * Référence à la fenêtre courante (à utiliser dans les classes internes)
@@ -109,8 +110,12 @@ public class ClientFrame2 extends AbstractClientFrame
 		// --------------------------------------------------------------------
 
 		sendAction = new SendAction();
-		clearAction = new ClearAction();
 		quitAction = new QuitAction();
+		clearMessagesAction = new ClearMessagesAction();
+		filterMessagesAction = new FilterMessagesAction();
+		sortAction = new SortAction();
+		clearSelectedAction = new ClearSelectedAction();
+		kickSelectedUsersAction = new KickSelectedUsersAction();
 
 
 		/*
@@ -129,9 +134,22 @@ public class ClientFrame2 extends AbstractClientFrame
 
 		JButton quitButton = new JButton(quitAction);
 		toolBar.add(quitButton);
+		
+		JSeparator separator1 = new JSeparator(1);
+		toolBar.add(separator1);
 
-		JButton clearButton = new JButton(clearAction);
-		toolBar.add(clearButton);
+		JButton clearSelectedButton = new JButton(clearSelectedAction);
+		toolBar.add(clearSelectedButton);
+		JButton kickSelectedUsersButton = new JButton(kickSelectedUsersAction);
+		toolBar.add(kickSelectedUsersButton);
+		
+		JSeparator separator2 = new JSeparator(1);
+		toolBar.add(separator2);
+
+		JButton clearMessagesButton = new JButton(clearMessagesAction);
+		toolBar.add(clearMessagesButton);
+		JButton filterMessagesButton = new JButton(filterMessagesAction);
+		toolBar.add(filterMessagesButton);
 
 		Component toolBarSep = Box.createHorizontalGlue();
 		toolBar.add(toolBarSep);
@@ -164,20 +182,27 @@ public class ClientFrame2 extends AbstractClientFrame
 		JMenuBar menuBar = new JMenuBar();
 		setJMenuBar(menuBar);
 
-		JMenu actionsMenu = new JMenu("Actions");
-		menuBar.add(actionsMenu);
-
-		JMenuItem sendMenuItem = new JMenuItem(sendAction);
-		actionsMenu.add(sendMenuItem);
-
-		JMenuItem clearMenuItem = new JMenuItem(clearAction);
-		actionsMenu.add(clearMenuItem);
-
-		JSeparator separator = new JSeparator();
-		actionsMenu.add(separator);
-
+		JMenu connectionsMenu = new JMenu("Connections");
+		menuBar.add(connectionsMenu);
 		JMenuItem quitMenuItem = new JMenuItem(quitAction);
-		actionsMenu.add(quitMenuItem);
+		connectionsMenu.add(quitMenuItem);
+		
+		JMenu messagesMenu = new JMenu("Messages");
+		menuBar.add(messagesMenu);
+		JMenuItem clearMessagesMenuItem = new JMenuItem(clearMessagesAction);
+		messagesMenu.add(clearMessagesMenuItem);
+		JMenuItem filterMessagesMenuItem = new JMenuItem(filterMessagesAction);
+		messagesMenu.add(filterMessagesMenuItem);
+		JMenuItem sortMenuItem = new JMenuItem(sortAction);
+		messagesMenu.add(sortMenuItem);
+		
+		JMenu usersMenu = new JMenu("Users");
+		menuBar.add(usersMenu);
+		JMenuItem clearSelectedMenuItem = new JMenuItem(clearSelectedAction);
+		usersMenu.add(clearSelectedMenuItem);
+		JMenuItem kickSelectedUsersMenuItem = new JMenuItem(kickSelectedUsersAction);
+		usersMenu.add(kickSelectedUsersMenuItem);
+		
 
 		// --------------------------------------------------------------------
 		// Documents
@@ -309,54 +334,6 @@ public class ClientFrame2 extends AbstractClientFrame
 	}
 
 	/**
-	 * Listener lorsque le bouton #btnClear est activé. Efface le contenu du
-	 * {@link #document}
-	 */
-	protected class ClearAction extends AbstractAction
-	{
-		/**
-		 * Constructeur d'une ClearAction : met en place le nom, la description,
-		 * le raccourci clavier et les small|Large icons de l'action
-		 */
-		public ClearAction()
-		{
-			putValue(SMALL_ICON,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/erase-16.png")));
-			putValue(LARGE_ICON_KEY,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/erase-32.png")));
-			putValue(ACCELERATOR_KEY,
-			         KeyStroke.getKeyStroke(KeyEvent.VK_L,
-			                                InputEvent.META_MASK));
-			putValue(NAME, "Clear");
-			putValue(SHORT_DESCRIPTION, "Clear document content");
-		}
-
-		/**
-		 * Opérations réalisées lorsque l'action est sollicitée
-		 * @param e évènement à l'origine de l'action
-		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
-		 */
-		@Override
-		public void actionPerformed(ActionEvent e)
-		{
-			/*
-			 * Effacer le contenu du document
-			 */
-			try
-			{
-				document.remove(0, document.getLength());
-			}
-			catch (BadLocationException ex)
-			{
-				logger.warning("ClientFrame2: clear doc: bad location");
-				logger.warning(ex.getLocalizedMessage());
-			}
-		}
-	}
-
-	/**
 	 * Action réalisée pour envoyer un message au serveur
 	 */
 	protected class SendAction extends AbstractAction
@@ -459,6 +436,170 @@ public class ClientFrame2 extends AbstractClientFrame
 			}
 
 			sendMessage(Vocabulary.byeCmd);
+		}
+	}
+
+	/**
+	 * Listener lorsque le bouton #btnClear est activé. Efface le contenu du
+	 * {@link #document}
+	 */
+	protected class ClearMessagesAction extends AbstractAction
+	{
+		/**
+		 * Constructeur d'une ClearAction : met en place le nom, la description,
+		 * le raccourci clavier et les small|Large icons de l'action
+		 */
+		public ClearMessagesAction()
+		{
+			putValue(SMALL_ICON,
+			         new ImageIcon(ClientFrame2.class
+			             .getResource("/icons/erase-16.png")));
+			putValue(LARGE_ICON_KEY,
+			         new ImageIcon(ClientFrame2.class
+			             .getResource("/icons/erase-32.png")));
+			putValue(ACCELERATOR_KEY,
+			         KeyStroke.getKeyStroke(KeyEvent.VK_L,
+			                                InputEvent.META_MASK));
+			putValue(NAME, "Clear Messages");
+			putValue(SHORT_DESCRIPTION, "Clear document content");
+		}
+
+		/**
+		 * Opérations réalisées lorsque l'action est sollicitée
+		 * @param e évènement à l'origine de l'action
+		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
+		 */
+		@Override
+		public void actionPerformed(ActionEvent e)
+		{
+			/*
+			 * Effacer le contenu du document
+			 */
+			try
+			{
+				document.remove(0, document.getLength());
+			}
+			catch (BadLocationException ex)
+			{
+				logger.warning("ClientFrame2: clear doc: bad location");
+				logger.warning(ex.getLocalizedMessage());
+			}
+		}
+	}
+
+	protected class FilterMessagesAction extends AbstractAction
+	{
+		public FilterMessagesAction()
+		{
+			putValue(SMALL_ICON,
+			         new ImageIcon(ClientFrame2.class
+			             .getResource("/icons/erase-16.png")));
+			putValue(LARGE_ICON_KEY,
+			         new ImageIcon(ClientFrame2.class
+			             .getResource("/icons/erase-32.png")));
+			putValue(ACCELERATOR_KEY,
+			         KeyStroke.getKeyStroke(KeyEvent.VK_F,
+			                                InputEvent.META_MASK));
+			putValue(NAME, "Filter Messages");
+			putValue(SHORT_DESCRIPTION, "FIlter users list");
+		}
+
+		/**
+		 * Opérations réalisées lorsque l'action est sollicitée
+		 * @param e évènement à l'origine de l'action
+		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
+		 */
+		@Override
+		public void actionPerformed(ActionEvent e)
+		{
+			//TODO
+		}
+	}
+	
+	protected class SortAction extends AbstractAction
+	{
+		public SortAction()
+		{
+			putValue(SMALL_ICON,
+			         new ImageIcon(ClientFrame2.class
+			             .getResource("/icons/erase-16.png")));
+			putValue(LARGE_ICON_KEY,
+			         new ImageIcon(ClientFrame2.class
+			             .getResource("/icons/erase-32.png")));
+			putValue(ACCELERATOR_KEY,
+			         KeyStroke.getKeyStroke(KeyEvent.VK_L,
+			                                InputEvent.META_MASK));
+			putValue(NAME, "Sort");
+			putValue(SHORT_DESCRIPTION, "Sort users list");
+		}
+
+		/**
+		 * Opérations réalisées lorsque l'action est sollicitée
+		 * @param e évènement à l'origine de l'action
+		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
+		 */
+		@Override
+		public void actionPerformed(ActionEvent e)
+		{
+			//TODO
+		}
+	}
+	
+	protected class ClearSelectedAction extends AbstractAction
+	{
+		public ClearSelectedAction()
+		{
+			putValue(SMALL_ICON,
+			         new ImageIcon(ClientFrame2.class
+			             .getResource("/icons/erase-16.png")));
+			putValue(LARGE_ICON_KEY,
+			         new ImageIcon(ClientFrame2.class
+			             .getResource("/icons/erase-32.png")));
+			putValue(ACCELERATOR_KEY,
+			         KeyStroke.getKeyStroke(KeyEvent.VK_X,
+			                                InputEvent.META_MASK));
+			putValue(NAME, "Clear Messages");
+			putValue(SHORT_DESCRIPTION, "Clear selected users");
+		}
+
+		/**
+		 * Opérations réalisées lorsque l'action est sollicitée
+		 * @param e évènement à l'origine de l'action
+		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
+		 */
+		@Override
+		public void actionPerformed(ActionEvent e)
+		{
+			//TODO
+		}
+	}
+	
+	protected class KickSelectedUsersAction extends AbstractAction
+	{
+		public KickSelectedUsersAction()
+		{
+			putValue(SMALL_ICON,
+			         new ImageIcon(ClientFrame2.class
+			             .getResource("/icons/erase-16.png")));
+			putValue(LARGE_ICON_KEY,
+			         new ImageIcon(ClientFrame2.class
+			             .getResource("/icons/erase-32.png")));
+			putValue(ACCELERATOR_KEY,
+			         KeyStroke.getKeyStroke(KeyEvent.VK_X,
+			                                InputEvent.META_MASK));
+			putValue(NAME, "Kick Selected Users");
+			putValue(SHORT_DESCRIPTION, "Kick Selected Users");
+		}
+
+		/**
+		 * Opérations réalisées lorsque l'action est sollicitée
+		 * @param e évènement à l'origine de l'action
+		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
+		 */
+		@Override
+		public void actionPerformed(ActionEvent e)
+		{
+			//TODO
 		}
 	}
 

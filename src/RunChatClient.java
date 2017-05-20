@@ -2,6 +2,8 @@ import java.awt.EventQueue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Vector;
@@ -10,7 +12,7 @@ import chat.Failure;
 import chat.UserOutputType;
 import chat.client.ChatClient;
 import widgets.AbstractClientFrame;
-//import widgets.ClientFrame;
+import widgets.ClientFrame;
 import widgets.ClientFrame2;
 
 /**
@@ -252,7 +254,14 @@ public class RunChatClient extends AbstractRunChat
 			 * ClientFrame2
 			 */
 			
-			final AbstractClientFrame frame = new ClientFrame2(name, host, commonRun, logger);
+			AbstractClientFrame tmp = null;
+			
+			if (guiVersion == 1)
+				tmp = new ClientFrame(name, host, commonRun, logger);
+			else
+				tmp = new ClientFrame2(name, host, commonRun, logger);
+			
+			final AbstractClientFrame frame = tmp;
 
 			/*
 			 * TODO Création du flux de sortie vers le GUI : userOut à partir du
@@ -262,9 +271,7 @@ public class RunChatClient extends AbstractRunChat
 			 */
 			try
 			{
-				// userOut = TODO Complete ...
-				userOut = frame.getOutPipe();
-				
+				userOut = new PipedOutputStream(frame.getInPipe());
 			}
 			catch (IOException e)
 			{
@@ -282,8 +289,7 @@ public class RunChatClient extends AbstractRunChat
 			 */
 			try
 			{
-				// userIn = TODO Complete ...
-				throw new IOException(); // TODO Remove when done
+				userIn = new PipedInputStream(frame.getOutPipe());
 			}
 			catch (IOException e)
 			{
