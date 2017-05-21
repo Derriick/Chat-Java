@@ -37,7 +37,7 @@ import javax.swing.text.StyleConstants;
 import chat.Vocabulary;
 
 /**
- * Fenêtre d'affichae de la version GUI texte du client de chat.
+ * Fenêtre d'affichage de la version GUI texte du client de chat.
  * @author davidroussel
  */
 public class ClientFrame2 extends AbstractClientFrame
@@ -133,22 +133,29 @@ public class ClientFrame2 extends AbstractClientFrame
 		getContentPane().add(toolBar, BorderLayout.NORTH);
 
 		JButton quitButton = new JButton(quitAction);
+		quitButton.setText("");
 		toolBar.add(quitButton);
 		
 		JSeparator separator1 = new JSeparator(1);
 		toolBar.add(separator1);
 
 		JButton clearSelectedButton = new JButton(clearSelectedAction);
+		clearSelectedButton.setText("");
 		toolBar.add(clearSelectedButton);
+		
 		JButton kickSelectedUsersButton = new JButton(kickSelectedUsersAction);
+		kickSelectedUsersButton.setText("");
 		toolBar.add(kickSelectedUsersButton);
 		
 		JSeparator separator2 = new JSeparator(1);
 		toolBar.add(separator2);
 
 		JButton clearMessagesButton = new JButton(clearMessagesAction);
+		clearMessagesButton.setText("");
 		toolBar.add(clearMessagesButton);
+		
 		JButton filterMessagesButton = new JButton(filterMessagesAction);
+		filterMessagesButton.setText("");
 		toolBar.add(filterMessagesButton);
 
 		Component toolBarSep = Box.createHorizontalGlue();
@@ -346,10 +353,10 @@ public class ClientFrame2 extends AbstractClientFrame
 		{
 			putValue(SMALL_ICON,
 			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/logout-16.png")));
+			             .getResource("/icons/sent-16.png")));
 			putValue(LARGE_ICON_KEY,
 			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/logout-32.png")));
+			             .getResource("/icons/sent-32.png")));
 			putValue(ACCELERATOR_KEY,
 			         KeyStroke.getKeyStroke(KeyEvent.VK_S,
 			                                InputEvent.META_MASK));
@@ -402,10 +409,10 @@ public class ClientFrame2 extends AbstractClientFrame
 		{
 			putValue(SMALL_ICON,
 			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/cancel-16.png")));
+			             .getResource("/icons/disconnected-16.png")));
 			putValue(LARGE_ICON_KEY,
 			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/cancel-32.png")));
+			             .getResource("/icons/disconnected-32.png")));
 			putValue(ACCELERATOR_KEY,
 			         KeyStroke.getKeyStroke(KeyEvent.VK_Q,
 			                                InputEvent.META_MASK));
@@ -453,10 +460,10 @@ public class ClientFrame2 extends AbstractClientFrame
 		{
 			putValue(SMALL_ICON,
 			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/erase-16.png")));
+			             .getResource("/icons/erase2-16.png")));
 			putValue(LARGE_ICON_KEY,
 			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/erase-32.png")));
+			             .getResource("/icons/erase2-32.png")));
 			putValue(ACCELERATOR_KEY,
 			         KeyStroke.getKeyStroke(KeyEvent.VK_L,
 			                                InputEvent.META_MASK));
@@ -493,10 +500,10 @@ public class ClientFrame2 extends AbstractClientFrame
 		{
 			putValue(SMALL_ICON,
 			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/erase-16.png")));
+			             .getResource("/icons/filled_filter-16.png")));
 			putValue(LARGE_ICON_KEY,
 			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/erase-32.png")));
+			             .getResource("/icons/filled_filter-32.png")));
 			putValue(ACCELERATOR_KEY,
 			         KeyStroke.getKeyStroke(KeyEvent.VK_F,
 			                                InputEvent.META_MASK));
@@ -520,12 +527,6 @@ public class ClientFrame2 extends AbstractClientFrame
 	{
 		public SortAction()
 		{
-			putValue(SMALL_ICON,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/erase-16.png")));
-			putValue(LARGE_ICON_KEY,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/erase-32.png")));
 			putValue(ACCELERATOR_KEY,
 			         KeyStroke.getKeyStroke(KeyEvent.VK_L,
 			                                InputEvent.META_MASK));
@@ -551,14 +552,14 @@ public class ClientFrame2 extends AbstractClientFrame
 		{
 			putValue(SMALL_ICON,
 			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/erase-16.png")));
+			             .getResource("/icons/delete_database-16.png")));
 			putValue(LARGE_ICON_KEY,
 			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/erase-32.png")));
+			             .getResource("/icons/delete_database-32.png")));
 			putValue(ACCELERATOR_KEY,
 			         KeyStroke.getKeyStroke(KeyEvent.VK_X,
 			                                InputEvent.META_MASK));
-			putValue(NAME, "Clear Messages");
+			putValue(NAME, "Clear selected");
 			putValue(SHORT_DESCRIPTION, "Clear selected users");
 		}
 
@@ -580,10 +581,10 @@ public class ClientFrame2 extends AbstractClientFrame
 		{
 			putValue(SMALL_ICON,
 			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/erase-16.png")));
+			             .getResource("/icons/remove_user-16.png")));
 			putValue(LARGE_ICON_KEY,
 			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/erase-32.png")));
+			             .getResource("/icons/remove_user-32.png")));
 			putValue(ACCELERATOR_KEY,
 			         KeyStroke.getKeyStroke(KeyEvent.VK_X,
 			                                InputEvent.META_MASK));

@@ -37,7 +37,7 @@ import javax.swing.text.StyleConstants;
 import chat.Vocabulary;
 
 /**
- * Fenêtre d'affichae de la version GUI texte du client de chat.
+ * Fenêtre d'affichage de la version GUI texte du client de chat.
  * @author davidroussel
  */
 public class ClientFrame extends AbstractClientFrame
