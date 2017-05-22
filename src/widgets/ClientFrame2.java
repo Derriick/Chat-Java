@@ -3,50 +3,65 @@ package widgets;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.GridLayout;
 import java.awt.HeadlessException;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
+import java.util.Vector;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.logging.Logger;
 
 import javax.swing.AbstractAction;
+import javax.swing.AbstractButton;
 import javax.swing.Box;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
+import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
 import javax.swing.KeyStroke;
+import javax.swing.ListCellRenderer;
+import javax.swing.ListSelectionModel;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultCaret;
 import javax.swing.text.StyleConstants;
 
+import chat.Failure;
 import chat.Vocabulary;
 
-/**
- * Fenêtre d'affichage de la version GUI texte du client de chat.
- * @author davidroussel
- */
+import models.Message;
+import models.NameSetListModel;
+
 public class ClientFrame2 extends AbstractClientFrame
 {
 	/**
 	 * Lecteur de flux d'entrée. Lit les données texte du {@link #inPipe} pour
 	 * les afficher dans le {@link #document}
 	 */
-	private BufferedReader inBR;
+	private ObjectInputStream inOS;
 
 	/**
 	 * Le label indiquant sur quel serveur on est connecté
@@ -59,6 +74,11 @@ public class ClientFrame2 extends AbstractClientFrame
 	protected final JTextField sendTextField;
 
 	/**
+	 * Actions à réaliser lorsque l'on veut effacer le contenu du document
+	 */
+	private final ClearMessagesAction clearMessagesAction;
+
+	/**
 	 * Actions à réaliser lorsque l'on veut envoyer un message au serveur
 	 */
 	private final SendAction sendAction;
@@ -68,16 +88,30 @@ public class ClientFrame2 extends AbstractClientFrame
 	 */
 	protected final QuitAction quitAction;
 
-	protected final ClearMessagesAction clearMessagesAction;
-	protected final FilterMessagesAction filterMessagesAction;
-	protected final SortAction sortAction;
+	/**
+	 * Actions à réaliser lorsque l'on veut supprimer les messages sélectionnés
+	 */
 	protected final ClearSelectedAction clearSelectedAction;
 	protected final KickSelectedUsersAction kickSelectedUsersAction;
+	protected final FilterSelectedAction filterSelectedAction;
+	protected final SortAction sortDateAction;
+	protected final SortAction sortContentAction;
+	protected final SortAction sortAuthorAction;
 
 	/**
 	 * Référence à la fenêtre courante (à utiliser dans les classes internes)
 	 */
 	protected final JFrame thisRef;
+
+	private JPopupMenu popupMenu;
+	private JCheckBoxMenuItem filterMenuItem;
+	private JToggleButton filterButton;
+	private Vector<Integer> selectedUsers;
+	protected Vector<Message> storedMessage;	
+	private String nameUser;
+	private ListSelectionModel selectionModel;
+	
+	NameSetListModel userListModel = new NameSetListModel();
 
 	/**
 	 * Constructeur de la fenêtre
@@ -88,75 +122,77 @@ public class ClientFrame2 extends AbstractClientFrame
 	 * @throws HeadlessException
 	 */
 	public ClientFrame2(String name,
-	                   String host,
-	                   Boolean commonRun,
-	                   Logger parentLogger)
-	    throws HeadlessException
+										 String host,
+										 Boolean commonRun,
+										 Logger parentLogger)
+					throws HeadlessException
 	{
 		super(name, host, commonRun, parentLogger);
 		thisRef = this;
 
+		storedMessage = new Vector<>();
+		selectedUsers = new Vector<>();
+		nameUser = name;
+
 		// --------------------------------------------------------------------
 		// Flux d'IO
 		//---------------------------------------------------------------------
-		/*
-		 * Attention, la création du flux d'entrée doit (éventuellement) être
-		 * reportée jusqu'au lancement du run dans la mesure où le inPipe
-		 * peut ne pas encore être connecté à un PipedOutputStream
-		 */
+	/*
+	 * Attention, la création du flux d'entrée doit (éventuellement) être
+	 * reportée jusqu'au lancement du run dans la mesure où le inPipe
+	 * peut ne pas encore être connecté à un PipedOutputStream
+	 */
 
 		// --------------------------------------------------------------------
 		// Création des actions send, clear et quit
 		// --------------------------------------------------------------------
 
 		sendAction = new SendAction();
-		quitAction = new QuitAction();
 		clearMessagesAction = new ClearMessagesAction();
-		filterMessagesAction = new FilterMessagesAction();
-		sortAction = new SortAction();
+		quitAction = new QuitAction();
+
 		clearSelectedAction = new ClearSelectedAction();
 		kickSelectedUsersAction = new KickSelectedUsersAction();
+		filterSelectedAction = new FilterSelectedAction();
 
+		sortDateAction = new SortAction("Date");
+		sortContentAction = new SortAction("Content");
+		sortAuthorAction = new SortAction("Author");
 
-		/*
-		 * Ajout d'un listener pour fermer correctement l'application lorsque
-		 * l'on ferme la fenêtre. WindowListener sur this
-		 */
 		addWindowListener(new FrameWindowListener());
 
 		// --------------------------------------------------------------------
 		// Widgets setup (handled by Window builder)
 		// --------------------------------------------------------------------
-
 		JToolBar toolBar = new JToolBar();
 		toolBar.setFloatable(false);
 		getContentPane().add(toolBar, BorderLayout.NORTH);
 
 		JButton quitButton = new JButton(quitAction);
-		quitButton.setText("");
+		quitButton.setHideActionText(true);
 		toolBar.add(quitButton);
-		
+
 		JSeparator separator1 = new JSeparator(1);
-		toolBar.add(separator1);
+		toolBar.add(separator1); 
 
 		JButton clearSelectedButton = new JButton(clearSelectedAction);
-		clearSelectedButton.setText("");
+		clearSelectedButton.setHideActionText(true);
 		toolBar.add(clearSelectedButton);
-		
-		JButton kickSelectedUsersButton = new JButton(kickSelectedUsersAction);
-		kickSelectedUsersButton.setText("");
-		toolBar.add(kickSelectedUsersButton);
-		
-		JSeparator separator2 = new JSeparator(1);
-		toolBar.add(separator2);
 
-		JButton clearMessagesButton = new JButton(clearMessagesAction);
-		clearMessagesButton.setText("");
-		toolBar.add(clearMessagesButton);
-		
-		JButton filterMessagesButton = new JButton(filterMessagesAction);
-		filterMessagesButton.setText("");
-		toolBar.add(filterMessagesButton);
+		JButton kickSelectedButton = new JButton(kickSelectedUsersAction);
+		kickSelectedButton.setHideActionText(true);
+		toolBar.add(kickSelectedButton);
+
+		JSeparator separator2 = new JSeparator(1);
+		toolBar.add(separator2); 
+
+		JButton clearButton = new JButton(clearMessagesAction);
+		clearButton.setHideActionText(true);
+		toolBar.add(clearButton);
+
+		filterButton = new JToggleButton(filterSelectedAction);
+		filterButton.setHideActionText(true);
+		toolBar.add(filterButton);
 
 		Component toolBarSep = Box.createHorizontalGlue();
 		toolBar.add(toolBarSep);
@@ -164,19 +200,30 @@ public class ClientFrame2 extends AbstractClientFrame
 		serverLabel = new JLabel(host == null ? "" : host);
 		toolBar.add(serverLabel);
 
+
 		JPanel sendPanel = new JPanel();
 		getContentPane().add(sendPanel, BorderLayout.SOUTH);
+
+
 		sendPanel.setLayout(new BorderLayout(0, 0));
 		sendTextField = new JTextField();
 		sendTextField.setAction(sendAction);
 		sendPanel.add(sendTextField);
-		sendTextField.setColumns(10);
+		sendTextField.setColumns(0);
 
 		JButton sendButton = new JButton(sendAction);
+		sendButton.setHideActionText(true);
 		sendPanel.add(sendButton, BorderLayout.EAST);
 
-		JScrollPane scrollPane = new JScrollPane();
-		getContentPane().add(scrollPane, BorderLayout.CENTER);
+		JPanel container = new JPanel();
+		getContentPane().add(container, BorderLayout.CENTER);
+		container.setLayout(new GridLayout(1, 2));
+
+		JScrollPane scrollPaneUser = new JScrollPane();
+		container.add(scrollPaneUser);
+
+		JScrollPane scrollPaneMessage = new JScrollPane();
+		container.add(scrollPaneMessage);
 
 		JTextPane textPane = new JTextPane();
 		textPane.setEditable(false);
@@ -184,32 +231,60 @@ public class ClientFrame2 extends AbstractClientFrame
 		DefaultCaret caret = (DefaultCaret) textPane.getCaret();
 		caret.setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE);
 
-		scrollPane.setViewportView(textPane);
+		scrollPaneMessage.setViewportView(textPane);
+
+		JList<String> userList = new JList<>();
+		userList.setModel(userListModel);
+		userListModel.add(name);
+		userList.setCellRenderer(new ColorTextRenderer());
+		scrollPaneUser.setViewportView(userList);
+
+		popupMenu = new JPopupMenu();
+		popupMenu.add(clearSelectedAction);
+		popupMenu.add(kickSelectedUsersAction);
+
+		MouseListener popupListener = new PopupListener();
+		userList.addMouseListener(popupListener);
 
 		JMenuBar menuBar = new JMenuBar();
 		setJMenuBar(menuBar);
 
 		JMenu connectionsMenu = new JMenu("Connections");
 		menuBar.add(connectionsMenu);
-		JMenuItem quitMenuItem = new JMenuItem(quitAction);
-		connectionsMenu.add(quitMenuItem);
-		
+
 		JMenu messagesMenu = new JMenu("Messages");
 		menuBar.add(messagesMenu);
-		JMenuItem clearMessagesMenuItem = new JMenuItem(clearMessagesAction);
-		messagesMenu.add(clearMessagesMenuItem);
-		JMenuItem filterMessagesMenuItem = new JMenuItem(filterMessagesAction);
-		messagesMenu.add(filterMessagesMenuItem);
-		JMenuItem sortMenuItem = new JMenuItem(sortAction);
-		messagesMenu.add(sortMenuItem);
-		
+
 		JMenu usersMenu = new JMenu("Users");
 		menuBar.add(usersMenu);
+
+		JMenuItem quitMenuItem = new JMenuItem(quitAction);
+		connectionsMenu.add(quitMenuItem);
+
+		JMenuItem clearMessagesMenuItem = new JMenuItem(clearMessagesAction);
+		messagesMenu.add(clearMessagesMenuItem);
+
+		filterMenuItem = new JCheckBoxMenuItem(filterSelectedAction);
+		messagesMenu.add(filterMenuItem);
+
+		JMenu sortMenu = new JMenu("Sort");
+		messagesMenu.add(sortMenu);
+		JMenuItem sortDateMenuItem = new JMenuItem(sortDateAction);
+		sortMenu.add(sortDateMenuItem);
+		JMenuItem sortContentMenuItem = new JMenuItem(sortContentAction);
+		sortMenu.add(sortContentMenuItem);
+		JMenuItem sortAuthorMenuItem = new JMenuItem(sortAuthorAction);
+		sortMenu.add(sortAuthorMenuItem);
+
 		JMenuItem clearSelectedMenuItem = new JMenuItem(clearSelectedAction);
 		usersMenu.add(clearSelectedMenuItem);
+
 		JMenuItem kickSelectedUsersMenuItem = new JMenuItem(kickSelectedUsersAction);
 		usersMenu.add(kickSelectedUsersMenuItem);
-		
+
+		filterSelectedAction.setEnabled(false);
+		clearSelectedAction.setEnabled(false);
+		kickSelectedUsersAction.setEnabled(false);
 
 		// --------------------------------------------------------------------
 		// Documents
@@ -220,146 +295,67 @@ public class ClientFrame2 extends AbstractClientFrame
 		documentStyle = textPane.addStyle("New Style", null);
 		defaultColor = StyleConstants.getForeground(documentStyle);
 
+		selectionModel = userList.getSelectionModel();
+		selectionModel.addListSelectionListener(new ListSelectionListener()
+		{
+			@Override
+			public void valueChanged(ListSelectionEvent lse)
+			{
+				ListSelectionModel lsm = (ListSelectionModel) lse.getSource();
+				
+				boolean isAdjusting = lse.getValueIsAdjusting();
+				selectedUsers = new Vector<>();
 
+				if (!isAdjusting) {
+					if (lsm.isSelectionEmpty()) {
+						filterSelectedAction.setEnabled(false);
+						clearSelectedAction.setEnabled(false);
+						kickSelectedUsersAction.setEnabled(false);
+					} else {
+						filterSelectedAction.setEnabled(true);
+						clearSelectedAction.setEnabled(true);
+						kickSelectedUsersAction.setEnabled(true);
+						int minSelectionIndex = lsm.getMinSelectionIndex();
+						int maxSelectionIndex = lsm.getMaxSelectionIndex();
+						
+						for (int i = minSelectionIndex; i <= maxSelectionIndex ; ++i)
+							if (lsm.isSelectedIndex(i))
+								selectedUsers.add(i);
+					}
+				}
+			}
+		});
 	}
 
-	/**
-	 * Affichage d'un message dans le {@link #document}, puis passage à la ligne
-	 * (avec l'ajout de {@link Vocabulary#newLine})
-	 * La partie "[yyyy/MM/dd HH:mm:ss]" correspond à la date/heure courante
-	 * obtenue grâce à un Calendar et est affichée avec la defaultColor alors
-	 * que la partie "utilisateur > message" doit être affichée avec une couleur
-	 * déterminée d'après le nom d'utilisateur avec
-	 * {@link #getColorFromName(String)}, le nom d'utilisateur est quant à lui
-	 * déterminé d'après le message lui même avec {@link #parseName(String)}.
-	 * @param message le message à afficher dans le {@link #document}
-	 * @throws BadLocationException si l'écriture dans le document échoue
-	 * @see {@link examples.widgets.ExampleFrame#appendToDocument(String, Color)}
-	 * @see java.text.SimpleDateFormat#SimpleDateFormat(String)
-	 * @see java.util.Calendar#getInstance()
-	 * @see java.util.Calendar#getTime()
-	 * @see javax.swing.text.StyleConstants
-	 * @see javax.swing.text.StyledDocument#insertString(int, String,
-	 * javax.swing.text.AttributeSet)
-	 */
-	protected void writeMessage(String message) throws BadLocationException
+	protected void writerMessage(Message message)
 	{
-		/*
-		 * ajout du message "[yyyy/MM/dd HH:mm:ss] utilisateur > message" à
-		 * la fin du document avec la couleur déterminée d'après "utilisateur"
-		 * (voir AbstractClientFrame#getColorFromName)
-		 */
-		StringBuffer sb = new StringBuffer();
-
-		sb.append(message);
-		sb.append(Vocabulary.newLine);
-
-		// source et contenu du message avec la couleur du message
-		String source = parseName(message);
-		if ((source != null) && (source.length() > 0))
-		{
-			/*
-			 * Changement de couleur du texte
-			 */
-			StyleConstants.setForeground(documentStyle,
-			                             getColorFromName(source));
+		String author = message.getAuthor();
+		
+		if ((author != null) && (author.length() > 0))
+			StyleConstants.setForeground(documentStyle, new Color(author.hashCode()).darker());
+		
+		try {
+			document.insertString(document.getLength(), message.toString() + Vocabulary.newLine, documentStyle);
+		} catch (BadLocationException e) {
+			logger.warning("ClientFrame2: bad location");
 		}
-
-		document.insertString(document.getLength(),
-		                      sb.toString(),
-		                      documentStyle);
-
-		// Retour à la couleur de texte par défaut
+		
 		StyleConstants.setForeground(documentStyle, defaultColor);
-
 	}
-
-	/**
-	 * Recherche du nom d'utilisateur dans un message de type
-	 * "utilisateur > message".
-	 * parseName est utilisé pour extraire le nom d'utilisateur d'un message
-	 * afin d'utiliser le hashCode de ce nom pour créer une couleur dans
-	 * laquelle
-	 * sera affiché le message de cet utilisateur (ainsi tous les messages d'un
-	 * même utilisateur auront la même couleur).
-	 * @param message le message à parser
-	 * @return le nom d'utilisateur s'il y en a un sinon null
-	 */
-	protected String parseName(String message)
-	{
-		/*
-		 * renvoyer la chaine correspondant à la partie "utilisateur" dans
-		 * un message contenant "utilisateur > message", ou bien null si cette
-		 * partie n'existe pas.
-		 */
-		if (message.contains(">") && message.contains("]"))
-		{
-			int pos1 = message.indexOf(']');
-			int pos2 = message.indexOf('>');
-			try
-			{
-				return new String(message.substring(pos1 + 2, pos2 - 1));
-			}
-			catch (IndexOutOfBoundsException iobe)
-			{
-				logger.warning("ClientFrame2::parseName: index out of bounds");
-				return null;
-			}
-		}
-		else
-		{
-			return null;
-		}
-	}
-
-	/**
-	 * Recherche du contenu du message dans un message de type
-	 * "utilisateur > message"
-	 * @param message le message à parser
-	 * @return le contenu du message s'il y en a un sinon null
-	 */
-	protected String parseContent(String message)
-	{
-		if (message.contains(">"))
-		{
-			int pos = message.indexOf('>');
-			try
-			{
-				return new String(message.substring(pos + 1, message.length()));
-			}
-			catch (IndexOutOfBoundsException iobe)
-			{
-				logger
-				    .warning("ClientFrame2::parseContent: index out of bounds");
-				return null;
-			}
-		}
-		else
-		{
-			return message;
-		}
-	}
-
-	/**
-	 * Action réalisée pour envoyer un message au serveur
-	 */
+	
 	protected class SendAction extends AbstractAction
 	{
-		/**
-		 * Constructeur d'une SendAction : met en place le nom, la description,
-		 * le raccourci clavier et les small|Large icons de l'action
-		 */
 		public SendAction()
 		{
 			putValue(SMALL_ICON,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/sent-16.png")));
+							new ImageIcon(ClientFrame2.class
+											.getResource("/icons/sent-16.png")));
 			putValue(LARGE_ICON_KEY,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/sent-32.png")));
+							new ImageIcon(ClientFrame2.class
+											.getResource("/icons/sent-32.png")));
 			putValue(ACCELERATOR_KEY,
-			         KeyStroke.getKeyStroke(KeyEvent.VK_S,
-			                                InputEvent.META_MASK));
+							KeyStroke.getKeyStroke(KeyEvent.VK_S,
+											InputEvent.META_MASK));
 			putValue(NAME, "Send");
 			putValue(SHORT_DESCRIPTION, "Send text to server");
 		}
@@ -370,79 +366,14 @@ public class ClientFrame2 extends AbstractClientFrame
 		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
 		 */
 		@Override
-		public void actionPerformed(ActionEvent e)
+		public void actionPerformed(ActionEvent evt)
 		{
-			/*
-			 * récupération du contenu du textfield et envoi du message au
-			 * serveur (ssi le message n'est pas vide), puis effacement du
-			 * contenu du textfield.
-			 */
-			// Obtention du contenu du sendTextField
 			String content = sendTextField.getText();
-
-			// logger.fine("Le contenu du textField etait = " + content);
-
-			// envoi du message
-			if (content != null)
-			{
-				if (content.length() > 0)
-				{
-					sendMessage(content);
-
-					// Effacement du contenu du textfield
-					sendTextField.setText("");
-				}
+			
+			if (content != null && content.length() > 0) {
+				sendMessage(content);
+				sendTextField.setText("");
 			}
-		}
-	}
-
-	/**
-	 * Action réalisée pour se délogguer du serveur
-	 */
-	private class QuitAction extends AbstractAction
-	{
-		/**
-		 * Constructeur d'une QuitAction : met en place le nom, la description,
-		 * le raccourci clavier et les small|Large icons de l'action
-		 */
-		public QuitAction()
-		{
-			putValue(SMALL_ICON,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/disconnected-16.png")));
-			putValue(LARGE_ICON_KEY,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/disconnected-32.png")));
-			putValue(ACCELERATOR_KEY,
-			         KeyStroke.getKeyStroke(KeyEvent.VK_Q,
-			                                InputEvent.META_MASK));
-			putValue(NAME, "Quit");
-			putValue(SHORT_DESCRIPTION, "Disconnect from server and quit");
-		}
-
-		/**
-		 * Opérations réalisées lorsque l'action "quitter" est sollicitée
-		 * @param e évènement à l'origine de l'action
-		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
-		 */
-		@Override
-		public void actionPerformed(ActionEvent e)
-		{
-			logger.info("QuitAction: sending bye ... ");
-
-			serverLabel.setText("");
-			thisRef.validate();
-
-			try
-			{
-				Thread.sleep(1000);
-			}
-			catch (InterruptedException e1)
-			{
-				return;
-			}
-
-			sendMessage(Vocabulary.byeCmd);
 		}
 	}
 
@@ -452,23 +383,19 @@ public class ClientFrame2 extends AbstractClientFrame
 	 */
 	protected class ClearMessagesAction extends AbstractAction
 	{
-		/**
-		 * Constructeur d'une ClearAction : met en place le nom, la description,
-		 * le raccourci clavier et les small|Large icons de l'action
-		 */
+
 		public ClearMessagesAction()
 		{
 			putValue(SMALL_ICON,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/erase2-16.png")));
+								new ImageIcon(ClientFrame2.class
+												.getResource("/icons/erase2-16.png")));
 			putValue(LARGE_ICON_KEY,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/erase2-32.png")));
+								new ImageIcon(ClientFrame2.class
+												.getResource("/icons/erase2-32.png")));
 			putValue(ACCELERATOR_KEY,
-			         KeyStroke.getKeyStroke(KeyEvent.VK_L,
-			                                InputEvent.META_MASK));
+								KeyStroke.getKeyStroke(KeyEvent.VK_L,
+												InputEvent.META_MASK));
 			putValue(NAME, "Clear Messages");
-			putValue(SHORT_DESCRIPTION, "Clear document content");
 		}
 
 		/**
@@ -477,130 +404,270 @@ public class ClientFrame2 extends AbstractClientFrame
 		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
 		 */
 		@Override
-		public void actionPerformed(ActionEvent e)
+		public void actionPerformed(ActionEvent evt)
 		{
-			/*
-			 * Effacer le contenu du document
-			 */
-			try
-			{
+			try {
 				document.remove(0, document.getLength());
-			}
-			catch (BadLocationException ex)
-			{
-				logger.warning("ClientFrame2: clear doc: bad location");
-				logger.warning(ex.getLocalizedMessage());
+				storedMessage = new Vector<>();
+			} catch (BadLocationException e) {
+				logger.warning("ClientFrame: bad location");
+				logger.warning(e.getLocalizedMessage());
 			}
 		}
 	}
-
-	protected class FilterMessagesAction extends AbstractAction
+	
+	private class QuitAction extends AbstractAction
 	{
-		public FilterMessagesAction()
+		public QuitAction()
 		{
-			putValue(SMALL_ICON,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/filled_filter-16.png")));
-			putValue(LARGE_ICON_KEY,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/filled_filter-32.png")));
-			putValue(ACCELERATOR_KEY,
-			         KeyStroke.getKeyStroke(KeyEvent.VK_F,
-			                                InputEvent.META_MASK));
-			putValue(NAME, "Filter Messages");
-			putValue(SHORT_DESCRIPTION, "FIlter users list");
+				putValue(SMALL_ICON,
+								new ImageIcon(ClientFrame2.class
+												.getResource("/icons/disconnected-16.png")));
+				putValue(LARGE_ICON_KEY,
+								new ImageIcon(ClientFrame2.class
+												.getResource("/icons/disconnected-32.png")));
+				putValue(ACCELERATOR_KEY,
+								KeyStroke.getKeyStroke(KeyEvent.VK_Q,
+												InputEvent.META_MASK));
+				putValue(NAME, "Quit");
+				putValue(SHORT_DESCRIPTION, "Disconnect from server and quit");
 		}
 
 		/**
-		 * Opérations réalisées lorsque l'action est sollicitée
+		 * Opérations réalisées lorsque l'action "quitter" est sollicitée
 		 * @param e évènement à l'origine de l'action
 		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
 		 */
 		@Override
-		public void actionPerformed(ActionEvent e)
+		public void actionPerformed(ActionEvent evt)
 		{
-			//TODO
-		}
-	}
-	
-	protected class SortAction extends AbstractAction
-	{
-		public SortAction()
-		{
-			putValue(ACCELERATOR_KEY,
-			         KeyStroke.getKeyStroke(KeyEvent.VK_L,
-			                                InputEvent.META_MASK));
-			putValue(NAME, "Sort");
-			putValue(SHORT_DESCRIPTION, "Sort users list");
-		}
+			logger.info("QuitAction: sending bye ... ");
+			serverLabel.setText("");
+			thisRef.validate();
 
-		/**
-		 * Opérations réalisées lorsque l'action est sollicitée
-		 * @param e évènement à l'origine de l'action
-		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
-		 */
-		@Override
-		public void actionPerformed(ActionEvent e)
-		{
-			//TODO
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				return;
+			}
+			sendMessage(Vocabulary.byeCmd);
 		}
 	}
-	
-	protected class ClearSelectedAction extends AbstractAction
-	{
+
+	private class ClearSelectedAction extends AbstractAction{
 		public ClearSelectedAction()
 		{
 			putValue(SMALL_ICON,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/delete_database-16.png")));
+							new ImageIcon(ClientFrame2.class
+											.getResource("/icons/delete_database-16.png")));
 			putValue(LARGE_ICON_KEY,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/delete_database-32.png")));
+							new ImageIcon(ClientFrame2.class
+											.getResource("/icons/delete_database-32.png")));
 			putValue(ACCELERATOR_KEY,
-			         KeyStroke.getKeyStroke(KeyEvent.VK_X,
-			                                InputEvent.META_MASK));
+							KeyStroke.getKeyStroke(KeyEvent.VK_F,
+											InputEvent.META_MASK));
 			putValue(NAME, "Clear selected");
-			putValue(SHORT_DESCRIPTION, "Clear selected users");
+			putValue(SHORT_DESCRIPTION, "Clear the selected messages");
 		}
 
 		/**
-		 * Opérations réalisées lorsque l'action est sollicitée
+		 * Opérations réalisées lorsque l'action "supprimer les messages des auteurs sélectionnés" est sollicitée
 		 * @param e évènement à l'origine de l'action
 		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
 		 */
 		@Override
-		public void actionPerformed(ActionEvent e)
+		public void actionPerformed(ActionEvent evt)
 		{
-			//TODO
+			try {
+				document.remove(0, document.getLength());
+			} catch (BadLocationException e) {
+				logger.warning("ClientFrame2: clear doc: bad location");
+				logger.warning(e.getLocalizedMessage());
+			}
+
+			Vector<Message> remainingmessage = new Vector<>();
+
+			for (Message message : storedMessage)
+				if (message.hasAuthor() && !selectedUsers.contains(userListModel.indexOf(message.getAuthor())))
+					remainingmessage.add(message);
+
+			storedMessage = new Vector<>(remainingmessage);
+
+			Consumer<Message> messagePrinter = (Message message) -> writerMessage(message);
+
+			if (filterButton.isSelected()) {
+				Predicate<Message> selectionFilter = (Message message) ->
+				{
+					if (message != null && message.hasAuthor() && selectedUsers.contains(userListModel.indexOf(message.getAuthor())))
+						return true;
+					else
+						return false;
+				};
+
+				storedMessage.stream().sorted().filter(selectionFilter).forEach(messagePrinter);
+			} else {
+				storedMessage.stream().sorted().forEach(messagePrinter);
+			}
 		}
 	}
-	
-	protected class KickSelectedUsersAction extends AbstractAction
+	private class KickSelectedUsersAction extends AbstractAction{
+			public KickSelectedUsersAction()
+			{
+				putValue(SMALL_ICON,
+								new ImageIcon(ClientFrame2.class
+												.getResource("/icons/remove_user-16.png")));
+				putValue(LARGE_ICON_KEY,
+								new ImageIcon(ClientFrame2.class
+												.getResource("/icons/remove_user-32.png")));
+				putValue(ACCELERATOR_KEY,
+								KeyStroke.getKeyStroke(KeyEvent.VK_M,
+												InputEvent.META_MASK));
+				putValue(NAME, "Kick Selected Users");
+				putValue(SHORT_DESCRIPTION, "Kick selected user(s)");
+			}
+
+			/**
+			 * Opérations réalisées lorsque l'action "kicker les utilisateurs sélectionnés" est sollicitée
+			 * @param e évènement à l'origine de l'action
+			 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
+			 */
+			@Override
+			public void actionPerformed(ActionEvent evt)
+			{
+				for(int i = 0; i < selectedUsers.size(); ++i) {
+					String currentUser = userListModel.getElementAt(i);
+					if(!currentUser.equals(nameUser)) 
+							outPW.println("Kick " + currentUser);
+				}
+			}
+
+	}
+
+	private class FilterSelectedAction extends AbstractAction
 	{
-		public KickSelectedUsersAction()
+		public FilterSelectedAction()
 		{
 			putValue(SMALL_ICON,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/remove_user-16.png")));
+							new ImageIcon(ClientFrame2.class
+											.getResource("/icons/filled_filter-16.png")));
 			putValue(LARGE_ICON_KEY,
-			         new ImageIcon(ClientFrame2.class
-			             .getResource("/icons/remove_user-32.png")));
+							new ImageIcon(ClientFrame2.class
+											.getResource("/icons/filled_filter-32.png")));
 			putValue(ACCELERATOR_KEY,
-			         KeyStroke.getKeyStroke(KeyEvent.VK_X,
-			                                InputEvent.META_MASK));
-			putValue(NAME, "Kick Selected Users");
-			putValue(SHORT_DESCRIPTION, "Kick Selected Users");
+							KeyStroke.getKeyStroke(KeyEvent.VK_N,
+											InputEvent.META_MASK));
+			putValue(NAME, "Filter Messages");
+			putValue(SHORT_DESCRIPTION, "Filter the selected messages");
 		}
 
 		/**
-		 * Opérations réalisées lorsque l'action est sollicitée
+		 * Opérations réalisées lorsque l'action "filtrer les messages des utilisateurs sélectionnés" est sollicitée
 		 * @param e évènement à l'origine de l'action
 		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
 		 */
 		@Override
-		public void actionPerformed(ActionEvent e)
+		public void actionPerformed(ActionEvent evt)
 		{
-			//TODO
+			AbstractButton source = (AbstractButton) evt.getSource();
+
+			try {
+				document.remove(0, document.getLength());
+			} catch (BadLocationException e) {
+				logger.warning("ClientFrame: bad location");
+				logger.warning(e.getLocalizedMessage());
+			}
+
+			Consumer<Message> messagePrinter = (Message message) -> writerMessage(message);
+
+			if (source.isSelected())
+			{
+				filterMenuItem.setSelected(true);
+				filterButton.setSelected(true);
+
+				Predicate<Message> selectionFilter = (Message message) ->
+				{
+					if (message != null && message.hasAuthor() && selectedUsers.contains(userListModel.indexOf(message.getAuthor())))
+						return true;
+					else
+						return false;
+				};
+				storedMessage.stream().sorted().filter(selectionFilter).forEach(messagePrinter);
+			}
+			else
+			{
+					filterMenuItem.setSelected(false);
+					filterButton.setSelected(false);
+					storedMessage.stream().sorted().forEach(messagePrinter);
+			}
+		}
+
+	}
+
+	private class SortAction extends AbstractAction{
+
+		boolean date = true;
+		boolean content = true;
+		boolean author = true;
+
+		public SortAction(String str)
+		{
+			putValue(NAME, str);
+			putValue(SHORT_DESCRIPTION, "Sort the messages by " + str);
+			
+			if (str.equals("Date"))
+				date = true;
+			
+			if (str.equals("Content"))
+				content = true;
+			
+			if (str.equals("Author"))
+				author = true;
+		}
+
+		/**
+		 * Opérations réalisées lorsque l'action "filtrer les messages des utilisateurs sélectionnés" est sollicitée
+		 * @param e évènement à l'origine de l'action
+		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
+		 */
+		@Override
+		public void actionPerformed(ActionEvent evt)
+		{
+			Consumer<Message> messagePrinter = (Message message) -> writerMessage(message);
+
+			if (date) {
+				Message.removeOrder(Message.MessageOrder.AUTHOR);
+				Message.removeOrder(Message.MessageOrder.CONTENT);
+				Message.addOrder(Message.MessageOrder.DATE);
+			} else if (content) {
+				Message.removeOrder(Message.MessageOrder.DATE);
+				Message.removeOrder(Message.MessageOrder.AUTHOR);
+				Message.addOrder(Message.MessageOrder.CONTENT);
+			} else if (author) {
+				Message.removeOrder(Message.MessageOrder.CONTENT);
+				Message.removeOrder(Message.MessageOrder.DATE);
+				Message.addOrder(Message.MessageOrder.AUTHOR);
+			}
+			
+			try {
+				document.remove(0, document.getLength());
+			} catch (BadLocationException e){
+				logger.warning("ClientFrame: bad location");
+				logger.warning(e.getLocalizedMessage());
+			}
+
+			if (filterButton.isSelected())
+			{
+				Predicate<Message> selectionFilter = (Message message) ->
+				{
+					if (message != null && message.hasAuthor() && selectedUsers.contains(userListModel.indexOf(message.getAuthor())))
+						return true;
+					else
+						return false;
+				};
+				storedMessage.stream().sorted().filter(selectionFilter).forEach(messagePrinter);
+			} else {
+				storedMessage.stream().sorted().forEach(messagePrinter);
+			}
 		}
 	}
 
@@ -615,17 +682,62 @@ public class ClientFrame2 extends AbstractClientFrame
 		 * "bye" au serveur
 		 */
 		@Override
-		public void windowClosing(WindowEvent e)
+		public void windowClosing(WindowEvent evt)
 		{
 			logger.info("FrameWindowListener::windowClosing: sending bye ... ");
-			/*
-			 * appeler actionPerformed de quitAction si celle ci est
-			 * non nulle
-			 */
 			if (quitAction != null)
-			{
 				quitAction.actionPerformed(null);
+		}
+	}
+
+
+	public static class ColorTextRenderer extends JLabel
+					implements ListCellRenderer<String>
+	{
+		private Color color = null;
+
+		@Override
+		public Component getListCellRendererComponent(
+						JList<? extends String> list, String value, int index,
+						boolean isSelected, boolean cellHasFocus)
+		{
+			color = list.getForeground();
+			if (value != null && value.length() > 0)
+				color = new Color(value.hashCode()).brighter();
+			
+			setText(value);
+			
+			if (isSelected) {
+				setBackground(color);
+				setForeground(list.getSelectionForeground());
+			} else {
+				setBackground(list.getBackground());
+				setForeground(color);
 			}
+			
+			setEnabled(list.isEnabled());
+			setFont(list.getFont());
+			setOpaque(true);
+			
+			return this;
+		}
+	}
+
+	//listener pour declencher le menu popup
+	public class PopupListener extends MouseAdapter
+	{
+		public void mousePressed(MouseEvent evt)
+		{
+			maybeShowPopup(evt);
+		}
+		public void mouseReleased(MouseEvent evt)
+		{
+			maybeShowPopup(evt);
+		}
+		private void maybeShowPopup(MouseEvent evt)
+		{
+			if (evt.isPopupTrigger())
+				popupMenu.show(evt.getComponent(), evt.getX(), evt.getY());
 		}
 	}
 
@@ -638,95 +750,81 @@ public class ClientFrame2 extends AbstractClientFrame
 	@Override
 	public void run()
 	{
-		inBR = new BufferedReader(new InputStreamReader(inPipe));
-
-		String messageIn;
-
-		while (commonRun.booleanValue())
-		{
-			messageIn = null;
-			/*
-			 * - Lecture d'une ligne de texte en provenance du serveur avec inBR
-			 * Si une exception survient lors de cette lecture on quitte la
-			 * boucle.
-			 * - Si cette ligne de texte n'est pas nulle on affiche le message
-			 * dans le document avec le format voulu en utilisant
-			 * #writeMessage(String)
-			 * - Après la fin de la boucle on change commonRun à false de
-			 * manière synchronisée afin que les autres threads utilisant ce
-			 * commonRun puissent s'arrêter eux aussi :
-			 * synchronized(commonRun)
-			 * {
-			 * commonRun = Boolean.FALSE;
-			 * }
-			 * Dans toutes les étapes si un problème survient (erreur,
-			 * exception, ...) on quitte la boucle en ayant au préalable ajouté
-			 * un "warning" ou un "severe" au logger (en fonction de l'erreur
-			 * rencontrée) et mis le commonRun à false (de manière synchronisé).
-			 */
-			try
-			{
-				/*
-				 * read from input (doit être bloquant)
-				 */
-				messageIn = inBR.readLine();
-			}
-			catch (IOException e)
-			{
-				logger.warning("ClientFrame2: I/O Error reading");
-				break;
-			}
-
-			if (messageIn != null)
-			{
-				// Ajouter le message à la fin du document avec la couleur
-				// voulue
-				try
-				{
-					writeMessage(messageIn);
-				}
-				catch (BadLocationException e)
-				{
-					logger.warning("ClientFrame2: write at bad location: "
-					    + e.getLocalizedMessage());
-				}
-			}
-			else // messageIn == null
-			{
-				break;
-			}
+		try {
+			inOS = new ObjectInputStream(inPipe);
+		} catch (IOException e) {
+			logger.severe(Failure.CLIENT_INPUT_STREAM
+							+ " unable to get user piped in stream");
+			logger.severe(e.getLocalizedMessage());
+			System.exit(Failure.CLIENT_INPUT_STREAM.toInteger());
 		}
 
-		if (commonRun.booleanValue())
-		{
-			logger
-			    .info("ClientFrame2::cleanup: changing run state at the end ... ");
-			synchronized (commonRun)
-			{
+		Message messageIn;
+
+		while (commonRun.booleanValue()) {
+			messageIn = null;
+
+			try {
+				messageIn = (Message) inOS.readObject();
+			} catch (IOException e) {
+				logger.warning("ClientFrame2: io error at reading");
+				break;
+			} catch (ClassNotFoundException e) {
+				logger.warning("ClientFrame2: class not found reading");
+				break;
+			}
+
+			if (messageIn != null) {
+				storedMessage.add(messageIn);
+
+				if (messageIn.hasAuthor() && !userListModel.contains(messageIn.getAuthor()))
+					userListModel.add(messageIn.getAuthor());
+			} else {
+				break;
+			}
+			
+			try {
+				document.remove(0, document.getLength());
+			} catch (BadLocationException e) {
+				logger.warning("ClientFrame: bad location");
+				logger.warning(e.getLocalizedMessage());
+			}
+			
+			Consumer<Message> messagePrinter = (Message message) -> writerMessage(message);
+
+			if (filterButton.isSelected()) {
+				Predicate<Message> selectionFilter = (Message message) ->
+				{
+					if (message != null && message.hasAuthor() && selectedUsers.contains(userListModel.indexOf(message.getAuthor())))
+						return true;
+					else
+						return false;
+				};
+				storedMessage.stream().sorted().filter(selectionFilter).forEach(messagePrinter);
+			} else {
+				storedMessage.stream().sorted().forEach(messagePrinter);
+			}
+		}
+		if (commonRun.booleanValue()) {
+			logger.info("ClientFrame2::cleanup: changing run state at the end ... ");
+			
+			synchronized (commonRun) {
 				commonRun = Boolean.FALSE;
 			}
 		}
-
 		cleanup();
 	}
-
-	/**
-	 * Fermeture de la fenètre et des flux à la fin de l'exécution
-	 */
 	@Override
 	public void cleanup()
 	{
 		logger.info("ClientFrame2::cleanup: closing input buffered reader ... ");
-		try
-		{
-			inBR.close();
+		
+		try {
+			inOS.close();
+		} catch (IOException e) {
+			logger.warning("ClientFrame2::cleanup: failed to close input reader" + e.getLocalizedMessage());
 		}
-		catch (IOException e)
-		{
-			logger.warning("ClientFrame2::cleanup: failed to close input reader"
-			    + e.getLocalizedMessage());
-		}
-
+		
 		super.cleanup();
 	}
 }

@@ -2,6 +2,7 @@ package models;
 
 import java.util.Iterator;
 import java.util.SortedSet;
+import java.util.TreeSet;
 
 import javax.swing.AbstractListModel;
 
@@ -30,7 +31,7 @@ public class NameSetListModel extends AbstractListModel<String>
 	 */
 	public NameSetListModel()
 	{
-		// TODO nameSet = ...
+		nameSet = new TreeSet<String>();
 	}
 
 	/**
@@ -44,8 +45,15 @@ public class NameSetListModel extends AbstractListModel<String>
 	 */
 	public boolean add(String value)
 	{
-		// TODO Replace with implementation ...
-		return false;
+		if (!nameSet.contains(value) && value != null) {
+			synchronized (nameSet) {
+				nameSet.add(value);
+				fireContentsChanged(this, 0, nameSet.size() - 1);
+			}
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	/**
@@ -55,8 +63,7 @@ public class NameSetListModel extends AbstractListModel<String>
 	 */
 	public boolean contains(String value)
 	{
-		// TODO Replace with implementation ...
-		return false;
+		return nameSet.contains(value);
 	}
 
 	/**
@@ -69,8 +76,24 @@ public class NameSetListModel extends AbstractListModel<String>
 	 */
 	public boolean remove(int index)
 	{
-		// TODO Replace with implementation ...
-		return false;
+		Iterator<String> it = this.nameSet.iterator();
+		boolean ret = false;
+		
+		synchronized (nameSet) {
+			for (int count = 0; it.hasNext(); count++) {
+				it.next();
+				
+				if (count == index) {
+					it.remove();
+					fireContentsChanged(this, 0, nameSet.size() - 1);
+					ret = true;
+					
+					break;
+				}
+			}
+		}
+		
+		return ret;
 	}
 
 	/**
@@ -81,7 +104,10 @@ public class NameSetListModel extends AbstractListModel<String>
 	 */
 	public void clear()
 	{
-		// TODO Complete ...
+		synchronized (nameSet) {
+			nameSet.clear();
+			fireContentsChanged(this, 0, nameSet.size()-1);
+		}
 	}
 
 	/**
@@ -92,8 +118,7 @@ public class NameSetListModel extends AbstractListModel<String>
 	@Override
 	public int getSize()
 	{
-		// TODO Replace with implementation ...
-		return 0;
+		return nameSet.size();
 	}
 
 	/**
@@ -106,7 +131,15 @@ public class NameSetListModel extends AbstractListModel<String>
 	@Override
 	public String getElementAt(int index)
 	{
-		// TODO Replace with implementation ...
+		int count = 0;
+		
+		for (String element : nameSet)
+		{
+			if (count == index)
+				return element;
+			count++;
+		}
+		
 		return null;
 	}
 
@@ -129,5 +162,19 @@ public class NameSetListModel extends AbstractListModel<String>
 			}
 		}
 		return sb.toString();
+	}
+	
+	// indexOf element s'il existe ou -1 sinon
+	public int indexOf(String str)
+	{
+		int index = 0;
+		
+		for(String elt : nameSet) {
+			if (elt.equals(str))
+				return index;
+			index++;
+		}
+		
+		return -1;
 	}
 }
