@@ -87,16 +87,13 @@ public class ClientFrame2 extends AbstractClientFrame
 	 * Actions à réaliser lorsque l'on veut envoyer un message au serveur
 	 */
 	protected final QuitAction quitAction;
-
-	/**
-	 * Actions à réaliser lorsque l'on veut supprimer les messages sélectionnés
-	 */
-	protected final ClearSelectedAction clearSelectedAction;
-	protected final KickSelectedUsersAction kickSelectedUsersAction;
+	
 	protected final FilterSelectedAction filterSelectedAction;
 	protected final SortAction sortDateAction;
 	protected final SortAction sortContentAction;
 	protected final SortAction sortAuthorAction;
+	protected final ClearSelectedAction clearSelectedAction;
+	protected final KickSelectedUsersAction kickSelectedUsersAction;
 
 	/**
 	 * Référence à la fenêtre courante (à utiliser dans les classes internes)
@@ -342,40 +339,6 @@ public class ClientFrame2 extends AbstractClientFrame
 		
 		StyleConstants.setForeground(documentStyle, defaultColor);
 	}
-	
-	protected class SendAction extends AbstractAction
-	{
-		public SendAction()
-		{
-			putValue(SMALL_ICON,
-							new ImageIcon(ClientFrame2.class
-											.getResource("/icons/sent-16.png")));
-			putValue(LARGE_ICON_KEY,
-							new ImageIcon(ClientFrame2.class
-											.getResource("/icons/sent-32.png")));
-			putValue(ACCELERATOR_KEY,
-							KeyStroke.getKeyStroke(KeyEvent.VK_S,
-											InputEvent.META_MASK));
-			putValue(NAME, "Send");
-			putValue(SHORT_DESCRIPTION, "Send text to server");
-		}
-
-		/**
-		 * Opérations réalisées lorsque l'action est sollicitée
-		 * @param e évènement à l'origine de l'action
-		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
-		 */
-		@Override
-		public void actionPerformed(ActionEvent evt)
-		{
-			String content = sendTextField.getText();
-			
-			if (content != null && content.length() > 0) {
-				sendMessage(content);
-				sendTextField.setText("");
-			}
-		}
-	}
 
 	/**
 	 * Listener lorsque le bouton #btnClear est activé. Efface le contenu du
@@ -386,16 +349,11 @@ public class ClientFrame2 extends AbstractClientFrame
 
 		public ClearMessagesAction()
 		{
-			putValue(SMALL_ICON,
-								new ImageIcon(ClientFrame2.class
-												.getResource("/icons/erase2-16.png")));
-			putValue(LARGE_ICON_KEY,
-								new ImageIcon(ClientFrame2.class
-												.getResource("/icons/erase2-32.png")));
-			putValue(ACCELERATOR_KEY,
-								KeyStroke.getKeyStroke(KeyEvent.VK_L,
-												InputEvent.META_MASK));
+			putValue(SMALL_ICON, new ImageIcon(ClientFrame2.class.getResource("/icons/erase2-16.png")));
+			putValue(LARGE_ICON_KEY, new ImageIcon(ClientFrame2.class.getResource("/icons/erase2-32.png")));
+			putValue(ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_L, InputEvent.META_MASK));
 			putValue(NAME, "Clear Messages");
+			putValue(SHORT_DESCRIPTION, "Clear all messages");
 		}
 
 		/**
@@ -416,21 +374,43 @@ public class ClientFrame2 extends AbstractClientFrame
 		}
 	}
 	
+	protected class SendAction extends AbstractAction
+	{
+		public SendAction()
+		{
+			putValue(SMALL_ICON, new ImageIcon(ClientFrame2.class.getResource("/icons/sent-16.png")));
+			putValue(LARGE_ICON_KEY, new ImageIcon(ClientFrame2.class.getResource("/icons/sent-32.png")));
+			putValue(ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.META_MASK));
+			putValue(NAME, "Send");
+			putValue(SHORT_DESCRIPTION, "Send text to other clients");
+		}
+
+		/**
+		 * Opérations réalisées lorsque l'action est sollicitée
+		 * @param e évènement à l'origine de l'action
+		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
+		 */
+		@Override
+		public void actionPerformed(ActionEvent evt)
+		{
+			String content = sendTextField.getText();
+			
+			if (content != null && content.length() > 0) {
+				sendMessage(content);
+				sendTextField.setText("");
+			}
+		}
+	}
+	
 	private class QuitAction extends AbstractAction
 	{
 		public QuitAction()
 		{
-				putValue(SMALL_ICON,
-								new ImageIcon(ClientFrame2.class
-												.getResource("/icons/disconnected-16.png")));
-				putValue(LARGE_ICON_KEY,
-								new ImageIcon(ClientFrame2.class
-												.getResource("/icons/disconnected-32.png")));
-				putValue(ACCELERATOR_KEY,
-								KeyStroke.getKeyStroke(KeyEvent.VK_Q,
-												InputEvent.META_MASK));
+				putValue(SMALL_ICON, new ImageIcon(ClientFrame2.class.getResource("/icons/disconnected-16.png")));
+				putValue(LARGE_ICON_KEY, new ImageIcon(ClientFrame2.class.getResource("/icons/disconnected-32.png")));
+				putValue(ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_Q, InputEvent.META_MASK));
 				putValue(NAME, "Quit");
-				putValue(SHORT_DESCRIPTION, "Disconnect from server and quit");
+				putValue(SHORT_DESCRIPTION, "Send byeCmd and quit the client");
 		}
 
 		/**
@@ -450,31 +430,133 @@ public class ClientFrame2 extends AbstractClientFrame
 			} catch (InterruptedException e) {
 				return;
 			}
+			
 			sendMessage(Vocabulary.byeCmd);
+		}
+	}
+
+	private class FilterSelectedAction extends AbstractAction
+	{
+		public FilterSelectedAction()
+		{
+			putValue(SMALL_ICON,
+							new ImageIcon(ClientFrame2.class
+											.getResource("/icons/filled_filter-16.png")));
+			putValue(LARGE_ICON_KEY,
+							new ImageIcon(ClientFrame2.class
+											.getResource("/icons/filled_filter-32.png")));
+			putValue(ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.META_MASK));
+			putValue(NAME, "Filter Messages");
+			putValue(SHORT_DESCRIPTION, "Filter messages of the selected users");
+		}
+		
+		@Override
+		public void actionPerformed(ActionEvent evt)
+		{
+			AbstractButton source = (AbstractButton) evt.getSource();
+
+			try {
+				document.remove(0, document.getLength());
+			} catch (BadLocationException e) {
+				logger.warning("ClientFrame: bad location");
+				logger.warning(e.getLocalizedMessage());
+			}
+
+			Consumer<Message> messagePrinter = (Message message) -> writerMessage(message);
+
+			if (source.isSelected()) {
+				filterMenuItem.setSelected(true);
+				filterButton.setSelected(true);
+
+				Predicate<Message> selectionFilter = (Message message) ->
+				{
+					if (message != null && message.hasAuthor() && selectedUsers.contains(userListModel.indexOf(message.getAuthor())))
+						return true;
+					else
+						return false;
+				};
+				storedMessage.stream().sorted().filter(selectionFilter).forEach(messagePrinter);
+			} else {
+					filterMenuItem.setSelected(false);
+					filterButton.setSelected(false);
+					storedMessage.stream().sorted().forEach(messagePrinter);
+			}
+		}
+	}
+
+	private class SortAction extends AbstractAction
+	{
+		boolean date = true;
+		boolean content = true;
+		boolean author = true;
+
+		public SortAction(String str)
+		{
+			putValue(NAME, str);
+			putValue(SHORT_DESCRIPTION, "Sort the messages by " + str);
+			
+			if (str.equals("Date"))
+				date = true;
+			
+			if (str.equals("Content"))
+				content = true;
+			
+			if (str.equals("Author"))
+				author = true;
+		}
+		
+		@Override
+		public void actionPerformed(ActionEvent evt)
+		{
+			Consumer<Message> messagePrinter = (Message message) -> writerMessage(message);
+
+			if (date) {
+				Message.addOrder(Message.MessageOrder.DATE);
+				Message.removeOrder(Message.MessageOrder.CONTENT);
+				Message.removeOrder(Message.MessageOrder.AUTHOR);
+			} else if (content) {
+				Message.removeOrder(Message.MessageOrder.DATE);
+				Message.addOrder(Message.MessageOrder.CONTENT);
+				Message.removeOrder(Message.MessageOrder.AUTHOR);
+			} else if (author) {
+				Message.removeOrder(Message.MessageOrder.DATE);
+				Message.removeOrder(Message.MessageOrder.CONTENT);
+				Message.addOrder(Message.MessageOrder.AUTHOR);
+			}
+			
+			try {
+				document.remove(0, document.getLength());
+			} catch (BadLocationException e){
+				logger.warning("ClientFrame: bad location");
+				logger.warning(e.getLocalizedMessage());
+			}
+
+			if (filterButton.isSelected())
+			{
+				Predicate<Message> selectionFilter = (Message message) ->
+				{
+					if (message != null && message.hasAuthor() && selectedUsers.contains(userListModel.indexOf(message.getAuthor())))
+						return true;
+					else
+						return false;
+				};
+				storedMessage.stream().sorted().filter(selectionFilter).forEach(messagePrinter);
+			} else {
+				storedMessage.stream().sorted().forEach(messagePrinter);
+			}
 		}
 	}
 
 	private class ClearSelectedAction extends AbstractAction{
 		public ClearSelectedAction()
 		{
-			putValue(SMALL_ICON,
-							new ImageIcon(ClientFrame2.class
-											.getResource("/icons/delete_database-16.png")));
-			putValue(LARGE_ICON_KEY,
-							new ImageIcon(ClientFrame2.class
-											.getResource("/icons/delete_database-32.png")));
-			putValue(ACCELERATOR_KEY,
-							KeyStroke.getKeyStroke(KeyEvent.VK_F,
-											InputEvent.META_MASK));
+			putValue(SMALL_ICON, new ImageIcon(ClientFrame2.class.getResource("/icons/delete_database-16.png")));
+			putValue(LARGE_ICON_KEY, new ImageIcon(ClientFrame2.class.getResource("/icons/delete_database-32.png")));
+			putValue(ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.META_MASK));
 			putValue(NAME, "Clear selected");
-			putValue(SHORT_DESCRIPTION, "Clear the selected messages");
+			putValue(SHORT_DESCRIPTION, "Clear messages of the selected users");
 		}
-
-		/**
-		 * Opérations réalisées lorsque l'action "supprimer les messages des auteurs sélectionnés" est sollicitée
-		 * @param e évènement à l'origine de l'action
-		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
-		 */
+		
 		@Override
 		public void actionPerformed(ActionEvent evt)
 		{
@@ -510,165 +592,27 @@ public class ClientFrame2 extends AbstractClientFrame
 			}
 		}
 	}
+	
 	private class KickSelectedUsersAction extends AbstractAction{
 			public KickSelectedUsersAction()
 			{
-				putValue(SMALL_ICON,
-								new ImageIcon(ClientFrame2.class
-												.getResource("/icons/remove_user-16.png")));
-				putValue(LARGE_ICON_KEY,
-								new ImageIcon(ClientFrame2.class
-												.getResource("/icons/remove_user-32.png")));
-				putValue(ACCELERATOR_KEY,
-								KeyStroke.getKeyStroke(KeyEvent.VK_M,
-												InputEvent.META_MASK));
+				putValue(SMALL_ICON, new ImageIcon(ClientFrame2.class.getResource("/icons/remove_user-16.png")));
+				putValue(LARGE_ICON_KEY, new ImageIcon(ClientFrame2.class.getResource("/icons/remove_user-32.png")));
+				putValue(ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_K, InputEvent.META_MASK));
 				putValue(NAME, "Kick Selected Users");
-				putValue(SHORT_DESCRIPTION, "Kick selected user(s)");
+				putValue(SHORT_DESCRIPTION, "Send a request to the server to kick the selected users");
 			}
-
-			/**
-			 * Opérations réalisées lorsque l'action "kicker les utilisateurs sélectionnés" est sollicitée
-			 * @param e évènement à l'origine de l'action
-			 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
-			 */
+			
 			@Override
 			public void actionPerformed(ActionEvent evt)
 			{
 				for(int i = 0; i < selectedUsers.size(); ++i) {
 					String currentUser = userListModel.getElementAt(i);
+					
 					if(!currentUser.equals(nameUser)) 
 							outPW.println("Kick " + currentUser);
 				}
 			}
-
-	}
-
-	private class FilterSelectedAction extends AbstractAction
-	{
-		public FilterSelectedAction()
-		{
-			putValue(SMALL_ICON,
-							new ImageIcon(ClientFrame2.class
-											.getResource("/icons/filled_filter-16.png")));
-			putValue(LARGE_ICON_KEY,
-							new ImageIcon(ClientFrame2.class
-											.getResource("/icons/filled_filter-32.png")));
-			putValue(ACCELERATOR_KEY,
-							KeyStroke.getKeyStroke(KeyEvent.VK_N,
-											InputEvent.META_MASK));
-			putValue(NAME, "Filter Messages");
-			putValue(SHORT_DESCRIPTION, "Filter the selected messages");
-		}
-
-		/**
-		 * Opérations réalisées lorsque l'action "filtrer les messages des utilisateurs sélectionnés" est sollicitée
-		 * @param e évènement à l'origine de l'action
-		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
-		 */
-		@Override
-		public void actionPerformed(ActionEvent evt)
-		{
-			AbstractButton source = (AbstractButton) evt.getSource();
-
-			try {
-				document.remove(0, document.getLength());
-			} catch (BadLocationException e) {
-				logger.warning("ClientFrame: bad location");
-				logger.warning(e.getLocalizedMessage());
-			}
-
-			Consumer<Message> messagePrinter = (Message message) -> writerMessage(message);
-
-			if (source.isSelected())
-			{
-				filterMenuItem.setSelected(true);
-				filterButton.setSelected(true);
-
-				Predicate<Message> selectionFilter = (Message message) ->
-				{
-					if (message != null && message.hasAuthor() && selectedUsers.contains(userListModel.indexOf(message.getAuthor())))
-						return true;
-					else
-						return false;
-				};
-				storedMessage.stream().sorted().filter(selectionFilter).forEach(messagePrinter);
-			}
-			else
-			{
-					filterMenuItem.setSelected(false);
-					filterButton.setSelected(false);
-					storedMessage.stream().sorted().forEach(messagePrinter);
-			}
-		}
-
-	}
-
-	private class SortAction extends AbstractAction{
-
-		boolean date = true;
-		boolean content = true;
-		boolean author = true;
-
-		public SortAction(String str)
-		{
-			putValue(NAME, str);
-			putValue(SHORT_DESCRIPTION, "Sort the messages by " + str);
-			
-			if (str.equals("Date"))
-				date = true;
-			
-			if (str.equals("Content"))
-				content = true;
-			
-			if (str.equals("Author"))
-				author = true;
-		}
-
-		/**
-		 * Opérations réalisées lorsque l'action "filtrer les messages des utilisateurs sélectionnés" est sollicitée
-		 * @param e évènement à l'origine de l'action
-		 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
-		 */
-		@Override
-		public void actionPerformed(ActionEvent evt)
-		{
-			Consumer<Message> messagePrinter = (Message message) -> writerMessage(message);
-
-			if (date) {
-				Message.removeOrder(Message.MessageOrder.AUTHOR);
-				Message.removeOrder(Message.MessageOrder.CONTENT);
-				Message.addOrder(Message.MessageOrder.DATE);
-			} else if (content) {
-				Message.removeOrder(Message.MessageOrder.DATE);
-				Message.removeOrder(Message.MessageOrder.AUTHOR);
-				Message.addOrder(Message.MessageOrder.CONTENT);
-			} else if (author) {
-				Message.removeOrder(Message.MessageOrder.CONTENT);
-				Message.removeOrder(Message.MessageOrder.DATE);
-				Message.addOrder(Message.MessageOrder.AUTHOR);
-			}
-			
-			try {
-				document.remove(0, document.getLength());
-			} catch (BadLocationException e){
-				logger.warning("ClientFrame: bad location");
-				logger.warning(e.getLocalizedMessage());
-			}
-
-			if (filterButton.isSelected())
-			{
-				Predicate<Message> selectionFilter = (Message message) ->
-				{
-					if (message != null && message.hasAuthor() && selectedUsers.contains(userListModel.indexOf(message.getAuthor())))
-						return true;
-					else
-						return false;
-				};
-				storedMessage.stream().sorted().filter(selectionFilter).forEach(messagePrinter);
-			} else {
-				storedMessage.stream().sorted().forEach(messagePrinter);
-			}
-		}
 	}
 
 	/**
@@ -691,17 +635,15 @@ public class ClientFrame2 extends AbstractClientFrame
 	}
 
 
-	public static class ColorTextRenderer extends JLabel
-					implements ListCellRenderer<String>
+	public static class ColorTextRenderer extends JLabel implements ListCellRenderer<String>
 	{
 		private Color color = null;
 
 		@Override
-		public Component getListCellRendererComponent(
-						JList<? extends String> list, String value, int index,
-						boolean isSelected, boolean cellHasFocus)
+		public Component getListCellRendererComponent(JList<? extends String> list, String value, int index, boolean isSelected, boolean cellHasFocus)
 		{
 			color = list.getForeground();
+			
 			if (value != null && value.length() > 0)
 				color = new Color(value.hashCode()).brighter();
 			
@@ -722,8 +664,8 @@ public class ClientFrame2 extends AbstractClientFrame
 			return this;
 		}
 	}
-
-	//listener pour declencher le menu popup
+	
+	//permet de déclencher le menu contextuel
 	public class PopupListener extends MouseAdapter
 	{
 		public void mousePressed(MouseEvent evt)
